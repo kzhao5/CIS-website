@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CIS · Rethinking Training–Inference Mismatch in LLM Reinforcement Learning</title>
+  <meta name="description" content="Where training–inference mismatch arises in LLM reinforcement learning and how calibrated importance sampling (CIS) corrects it.">
+  <meta property="og:title" content="Rethinking Training–Inference Mismatch in LLM Reinforcement Learning">
+  <meta property="og:description" content="The mismatch is a constant-scale shift in log-odds. CIS truncates it with a ratio cap that tightens as token confidence increases.">
+  <meta property="og:image" content="assets/overview.png">
+  <link rel="icon" type="image/svg+xml" href="assets/mark.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <a class="wordmark" href="#top"><img src="assets/mark.svg" alt=""><span>CIS</span></a>
+  <nav>
+    <a href="#mismatch">Where it arises</a>
+    <a href="#method">Method</a>
+    <a href="#results">Results</a>
+    <a href="#resources">Resources</a>
+  </nav>
+  <div class="header-links">
+    <a href="https://arxiv.org/abs/2609.32444">arXiv</a>
+    <a href="https://github.com/kzhao5/CIS-RL">GitHub</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- Hero -->
+  <section class="hero container">
+    <img class="hero-logo" src="assets/logo.png" alt="CIS: Calibrated Importance Sampling">
+    <p class="eyebrow">LLM reinforcement learning · training–inference mismatch</p>
+    <h1>Rethinking Training–Inference Mismatch <br>in LLM Reinforcement Learning</h1>
+    <p class="subtitle">Where it <em>arises</em> and how to <em>correct</em> it</p>
+    <div class="authors">
+      <span>Tianrun Yu<sup>1</sup></span>
+      <span>Kaixiang Zhao<sup>1</sup></span>
+      <span>Shangzhe Li<sup>2</sup></span>
+      <span>Yuxiao Yang<sup>2</sup></span>
+      <span>Porter Jenkins<sup>1</sup></span>
+      <span>Weitong Zhang<sup>2</sup></span>
+      <span>Taylor W. Killian<sup>1,*</sup></span>
+    </div>
+    <div class="affiliations">
+      <span><sup>1</sup>Brigham Young University</span>
+      <span><sup>2</sup>University of North Carolina at Chapel Hill</span>
+    </div>
+    <p class="note">* Corresponding author · <a href="mailto:tkillian@cs.byu.edu">tkillian@cs.byu.edu</a></p>
+    <div class="actions">
+      <a class="btn primary" href="https://arxiv.org/abs/2609.32444">Paper <span aria-hidden="true">↗</span></a>
+      <a class="btn" href="https://arxiv.org/pdf/2609.32444">PDF</a>
+      <a class="btn" href="https://github.com/kzhao5/CIS-RL">Code</a>
+      <a class="btn ghost" href="#citation">BibTeX</a>
+    </div>
+  </section>
+
+  <!-- Central idea -->
+  <section class="container">
+    <div class="idea">
+      <div class="idea-text">
+        <p class="eyebrow light">The central idea</p>
+        <h2>A constant shift in log-odds.<br>A cap that tightens with confidence.</h2>
+        <p>Rollouts come from an inference engine, gradients from a training engine, and the two assign slightly different probabilities to the same token. This mismatch enters the importance ratio as a displacement in log-odds whose scale changes only mildly with token confidence, while the ratio itself is compressed toward one for confident tokens. Calibrated importance sampling (CIS) truncates the displacement at one threshold, which becomes a ratio cap that is tighter for more confident tokens.</p>
+      </div>
+      <div class="idea-math">
+        <div class="eq-card">
+          <span class="eq-label">The mismatch</span>
+          $$k_t = p_t + (1-p_t)\,e^{\varepsilon_t}$$
+          <span class="eq-note">$\varepsilon_t = \mathrm{logit}\,p_t - \mathrm{logit}\,q_t$</span>
+        </div>
+        <div class="eq-arrow" aria-hidden="true">↓</div>
+        <div class="eq-card accent">
+          <span class="eq-label">The correction</span>
+          $$f_t = \min\lbrace k_t,\; 1 + \lambda \max(1-p_t,\,\kappa)\rbrace$$
+          <span class="eq-note">$p_t$ training-side, $q_t$ inference-side probability</span>
+        </div>
+      </div>
+    </div>
+    <ol class="takeaways">
+      <li><span>01</span><div><strong>Where it arises.</strong> A per-logit perturbation before the softmax becomes an additive log-odds displacement, with a heavy tail on mixture-of-experts models.</div></li>
+      <li><span>02</span><div><strong>How to correct it.</strong> One threshold on the displacement gives a ratio cap that tightens with confidence, floored at the storage resolution of the log-probabilities.</div></li>
+      <li><span>03</span><div><strong>Why it works.</strong> The cap bounds the second moment that makes exact importance sampling unstable, at the cost of a bias controlled by the truncated excess.</div></li>
+    </ol>
+  </section>
+
+  <section class="container figure-wide">
+    <figure>
+      <img src="assets/overview.png" alt="Overview of CIS">
+      <figcaption>The inference and training engines assign different probabilities to the same tokens. CIS truncates the importance ratios with confidence-dependent caps, which are tighter for more confident tokens.</figcaption>
+    </figure>
+  </section>
+
+  <!-- 01 Where it arises -->
+  <section id="mismatch" class="section">
+    <div class="container">
+      <p class="kicker">01 / Where it arises</p>
+      <h2>The mismatch is a shift in log-odds, not in the ratio.</h2>
+      <div class="lead">
+        <p>The two engines compute slightly different logits. For a sampled token with training-side probability $p_t$ and inference-side probability $q_t$, this perturbation reaches the importance ratio $k_t = p_t/q_t$ only through the log-odds displacement $\varepsilon_t = \mathrm{logit}\,p_t - \mathrm{logit}\,q_t$, since <span class="nowrap">$k_t = p_t + (1-p_t)\,e^{\varepsilon_t}$</span>.</p>
+        <p>The displacement behaves like a common noise source. Its scale changes only mildly with token confidence, whereas the deviation of $k_t$ from one shrinks by orders of magnitude as $p_t \to 1$. On mixture-of-experts models it is heavy-tailed; on a dense control it stays close to zero.</p>
+      </div>
+
+      <div class="grid-2 figs">
+        <figure>
+          <img src="assets/mismatch_tails.png" alt="Perturbation and displacement distributions, MoE versus dense">
+          <figcaption>(a) Per-logit perturbation $\delta_j$ and (b) log-odds displacement $\varepsilon_t$, MoE vs. dense.</figcaption>
+        </figure>
+        <figure>
+          <img src="assets/eps_vs_confidence.png" alt="Displacement against token uncertainty">
+          <figcaption>$\varepsilon_t$ against token uncertainty $1-p_t$ on Qwen1.5-MoE-A2.7B; the black line is the median.</figcaption>
+        </figure>
+      </div>
+
+      <div class="stat-block">
+        <div class="stat-head">
+          <h3>Spread by confidence on Qwen1.5-MoE-A2.7B</h3>
+          <p>Scaled median absolute deviation over 12.2M sampled tokens.</p>
+        </div>
+        <div class="table-scroll">
+        <table class="stat-table">
+          <thead><tr><th>$p_t$ range</th><th>Tokens</th><th>MAD$(\varepsilon_t)$</th><th>MAD$(\log k_t)$</th></tr></thead>
+          <tbody>
+            <tr><td>$p_t &lt; 0.5$</td><td>2,824,021</td><td class="hl">0.156</td><td>$1.15\times10^{-1}$</td></tr>
+            <tr><td>$0.5$–$0.9$</td><td>2,337,554</td><td class="hl">0.175</td><td>$3.96\times10^{-2}$</td></tr>
+            <tr><td>$0.9$–$0.99$</td><td>1,951,864</td><td class="hl">0.186</td><td>$6.43\times10^{-3}$</td></tr>
+            <tr><td>$0.99$–$0.999$</td><td>1,549,915</td><td class="hl">0.203</td><td>$6.78\times10^{-4}$</td></tr>
+            <tr><td>$p_t &gt; 0.999$</td><td>3,562,738</td><td class="hl">0.237</td><td>$9.90\times10^{-6}$</td></tr>
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 02 Method -->
+  <section id="method" class="section tinted">
+    <div class="container">
+      <p class="kicker">02 / How to correct it</p>
+      <h2>One threshold in log-odds becomes a confidence-aware cap.</h2>
+      <div class="lead">
+        <p>CIS keeps the importance weight unless the displacement is too large. Above the floor, $f_t &lt; k_t$ exactly when $e^{\varepsilon_t} &gt; 1+\lambda$, so every token faces the same threshold in log-odds. A fixed ratio cap such as TIS, $k_t \le C$, instead requires $e^{\varepsilon_t} \le 1 + (C-1)/(1-p_t)$: a threshold that rises without bound as the token becomes confident, so TIS concentrates its truncation on low-confidence tokens.</p>
+      </div>
+
+      <div class="explorer">
+        <div class="explorer-controls">
+          <h3>Explore the two caps</h3>
+          <p class="muted">Pick a token's confidence and its log-odds displacement.</p>
+          <label>Token uncertainty $1-p_t$ <output id="u-out"></output>
+            <input id="u" type="range" min="-4" max="-0.01" step="0.01" value="-1">
+          </label>
+          <label>Displacement $\varepsilon_t$ <output id="e-out"></output>
+            <input id="e" type="range" min="-2" max="8" step="0.01" value="2">
+          </label>
+          <div class="readout">
+            <div><span>Ratio $k_t$</span><strong id="k-out"></strong></div>
+            <div><span>TIS weight ($C=2$)</span><strong id="tis-out"></strong></div>
+            <div class="cis"><span>CIS weight</span><strong id="cis-out"></strong></div>
+          </div>
+          <p class="muted small">$\lambda=2.3$, $\kappa=5\times10^{-3}$. The lower side is never truncated.</p>
+        </div>
+        <div class="explorer-plot">
+          <svg id="plot" viewBox="0 0 560 380" role="img" aria-label="Truncation regions of TIS and CIS in the plane of token uncertainty and displacement"></svg>
+          <div class="legend">
+            <span><i class="sw cis"></i>CIS threshold</span>
+            <span><i class="sw tis"></i>TIS threshold ($C=2$)</span>
+            <span><i class="sw dot"></i>your token</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2 cards">
+        <div class="card">
+          <h3>Algorithm</h3>
+          <p class="muted">One elementwise operation on the two log-probabilities that decoupled PPO and GRPO already keep. No extra forward or backward pass.</p>
+<pre><code><span class="k">p</span>   = logp_train.exp()
+<span class="k">k</span>   = (logp_train - logp_infer).exp()
+<span class="k">cap</span> = 1 + lam * (1 - p).clamp(min=kappa)
+<span class="k">w</span>   = torch.minimum(k, cap).detach()  <span class="c"># multiplies the token loss</span></code></pre>
+        </div>
+        <div class="card">
+          <h3>Guarantee</h3>
+          <p>The error of exact importance sampling is governed by the second moment of the ratio, which is unbounded under a heavy-tailed mismatch. CIS replaces this term with one bounded by a constant, at the cost of a bias controlled by the truncated excess $\sum_t (k_t - f_t)$.</p>
+          <p class="muted">The floor $\kappa$ keeps the cap of confident tokens above the storage resolution of the log-probabilities.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 Results -->
+  <section id="results" class="section">
+    <div class="container">
+      <p class="kicker">03 / Results</p>
+      <h2>The highest five-benchmark average on three MoE models.</h2>
+      <div class="lead">
+        <p>RL on GSM8K with one recipe for every method. Held-out accuracy (%) averaged over GSM8K, MATH-500, SVAMP, Minerva Math, and OlympiadBench; mean ± standard deviation over three seeds. The paper compares nine baselines.</p>
+      </div>
+      <div class="table-wrap">
+        <table class="results">
+          <thead><tr><th>Model</th><th>No correction</th><th>TIS</th><th>Best baseline</th><th class="ours">CIS</th></tr></thead>
+          <tbody>
+            <tr><td>Qwen1.5-MoE-A2.7B</td><td>30.99 <small>± 0.22</small></td><td>31.40 <small>± 2.47</small></td><td>34.18 <small>± 0.55</small> <em>IcePop</em></td><td class="ours">34.78 <small>± 0.25</small></td></tr>
+            <tr><td>DeepSeek-V2-Lite</td><td>35.83 <small>± 1.08</small></td><td>36.02 <small>± 0.51</small></td><td>36.73 <small>± 0.73</small> <em>IcePop</em></td><td class="ours">37.16 <small>± 0.73</small></td></tr>
+            <tr><td>Qwen3-30B-A3B</td><td>68.26 <small>± 0.27</small></td><td>69.14 <small>± 0.30</small></td><td>69.23 <small>± 0.16</small> <em>GSPO</em></td><td class="ours">69.88 <small>± 0.55</small></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <figure class="figure-block">
+        <img src="assets/bias_variance.png" alt="Bias and variance diagnostics">
+        <figcaption>(a) Share of $\mathrm{Var}(k_t)$ on each side of $\log k_t = 0$. (b) Truncation bias across confidence bins: TIS concentrates its bias on low-confidence tokens. (c) Overall bias relative to exact correction. (d) Added variance relative to no correction.</figcaption>
+      </figure>
+
+      <details class="more">
+        <summary>Sensitivity to $\lambda$ and $\kappa$</summary>
+        <div class="grid-2">
+          <img src="assets/sweep_lambda.png" alt="Threshold sweep">
+          <img src="assets/sweep_kappa.png" alt="Floor sweep">
+        </div>
+        <p class="muted">Five-benchmark average on Qwen1.5-MoE-A2.7B over three seeds. Every positive threshold outperforms the uncorrected run, while $\lambda=0$, a hard cap at one, collapses. The floor works best near the storage resolution of the log-probabilities.</p>
+      </details>
+    </div>
+  </section>
+
+  <!-- Resources -->
+  <section id="resources" class="section tinted">
+    <div class="container">
+      <p class="kicker">Resources</p>
+      <h2>Read the paper, run the code.</h2>
+      <div class="grid-3 resource-cards">
+        <a class="rcard" href="https://arxiv.org/abs/2609.32444"><span class="rtag">Paper</span><strong>arXiv:2609.32444</strong><span class="muted">Theory, measurements, and the full comparison.</span></a>
+        <a class="rcard" href="https://github.com/kzhao5/CIS-RL"><span class="rtag">Code</span><strong>kzhao5/CIS-RL</strong><span class="muted">Operator, AReaL integration, training and evaluation scripts.</span></a>
+        <a class="rcard" href="https://github.com/kzhao5/CIS-RL#measuring-the-mismatch"><span class="rtag">Measure</span><strong>Mismatch pipeline</strong><span class="muted">Measure $\varepsilon_t$ and $\log k_t$ on your own model and engines.</span></a>
+      </div>
+      <div class="grid-2 cards use">
+        <div class="card">
+          <h3>Use CIS in AReaL</h3>
+<pre><code>actor:
+  use_decoupled_loss: true
+  rejection_sampling:
+    level: token
+    action: cis
+    metric: ratio
+    cis_lambda: 2.3
+    cis_kappa: 5.0e-3</code></pre>
+        </div>
+        <div class="card">
+          <h3>Reproduce</h3>
+<pre><code><span class="c"># patch AReaL at the pinned commit</span>
+bash areal_patch/apply_patch.sh
+
+<span class="c"># train with CIS and evaluate on five benchmarks</span>
+MODEL=moe SEED=1 bash scripts/train.sh
+
+<span class="c"># measure the mismatch of a model</span>
+ARCH=moe bash scripts/measure.sh</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Citation -->
+  <section id="citation" class="section">
+    <div class="container narrow">
+      <p class="kicker">Citation</p>
+      <div class="bib">
+        <button id="copy-bib" type="button">Copy</button>
+<pre id="bibtex">@article{yu2026rethinking,
+  title   = {Rethinking Training--Inference Mismatch in {LLM} Reinforcement Learning: Where It Arises and How to Correct It},
+  author  = {Yu, Tianrun and Zhao, Kaixiang and Li, Shangzhe and Yang, Yuxiao and Jenkins, Porter and Zhang, Weitong and Killian, Taylor W.},
+  journal = {arXiv preprint arXiv:2609.32444},
+  year    = {2026}
+}</pre>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <span>Brigham Young University · University of North Carolina at Chapel Hill</span>
+    <span><a href="https://github.com/kzhao5/CIS-RL">Code</a> released under the Apache License 2.0</span>
+  </div>
+</footer>
+
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script defer src="app.js"></script>
+</body>
+</html>
