@@ -70,6 +70,7 @@ figcaption { font-size: 0.88rem; color: var(--muted); margin-top: 12px; line-hei
 .btn:hover { border-color: var(--mint); transform: translateY(-1px); }
 .btn.primary { background: var(--ink); color: #fff; border-color: var(--ink); }
 .btn.primary:hover { background: #3a2651; }
+.btn-icon { width: 18px; height: auto; margin-left: -4px; }
 .btn.ghost { border-color: transparent; color: var(--teal); }
 
 /* Central idea */
@@ -94,9 +95,10 @@ figcaption { font-size: 0.88rem; color: var(--muted); margin-top: 12px; line-hei
 .figure-wide figcaption { text-align: center; max-width: 760px; margin-inline: auto; }
 
 /* Grids */
-.grid-2 > *, .grid-3 > *, .idea > *, .explorer > *, .stat-block > *, .takeaways > * { min-width: 0; }
+.grid-2 > *, .grid-3 > *, .grid-4 > *, .idea > *, .explorer > *, .stat-block > *, .takeaways > * { min-width: 0; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
 .figs { margin-top: 44px; align-items: end; }
 .figs img { max-height: 380px; width: auto; margin-inline: auto; }
 
@@ -161,6 +163,8 @@ pre .c { color: #a79bb8; }
 .rcard:hover { border-color: var(--mint); transform: translateY(-2px); box-shadow: 0 10px 24px rgba(42, 26, 58, 0.07); }
 .rcard strong { color: var(--ink); font-size: 1.05rem; }
 .rcard .muted { font-size: 0.88rem; line-height: 1.5; }
+.with-icon { display: inline-flex; align-items: center; gap: 8px; }
+.with-icon img { width: 20px; height: auto; }
 .rtag { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--teal); }
 .use { margin-top: 20px; }
 .use .card { display: flex; flex-direction: column; }
@@ -179,6 +183,10 @@ pre .c { color: #a79bb8; }
 .footer-lab:hover { text-decoration: underline; }
 .site-footer .container { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
 
+@media (max-width: 1100px) {
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+
 @media (max-width: 900px) {
   .hero h1 br { display: none; }
   .site-header { gap: 12px; padding: 10px 18px; }
@@ -186,7 +194,7 @@ pre .c { color: #a79bb8; }
   .figs img { max-height: none; width: 100%; }
   .site-header nav { display: none; }
   .site-header { justify-content: space-between; }
-  .idea, .explorer, .stat-block, .grid-2, .grid-3, .takeaways { grid-template-columns: 1fr; }
+  .idea, .explorer, .stat-block, .grid-2, .grid-3, .grid-4, .takeaways { grid-template-columns: 1fr; }
   .idea { padding: 32px 26px; gap: 28px; }
   .section { padding-block: 72px; }
   .container, .narrow { width: calc(100% - 36px); }
